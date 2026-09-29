@@ -1,0 +1,44 @@
+{
+  "name": "dr-print-pro",
+  "version": "1.0.1",
+  "description": "DR PRINT PRO Windows Management System",
+  "main": "main.js",
+  "author": "DR PRINT",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.drprint.pro",
+    "productName": "DR PRINT PRO",
+    "files": [
+      "main.js",
+      "index-windows.html"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "DR_PRINT_PRO_icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DR PRINT PRO",
+      "artifactName": "DR_PRINT_PRO_Setup_${version}.exe"
+    },
+    "publish": null
+  }
+}
