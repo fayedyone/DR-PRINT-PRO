@@ -1,0 +1,69 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>DR PRINT Owner</title><style>
+*{box-sizing:border-box}body{margin:0;background:#07111f;color:#f8fafc;font-family:Tahoma,Arial}
+.wrap{max-width:900px;margin:auto;padding:18px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center}
+h1{font-size:22px;margin:0}.sub{color:#94a3b8;font-size:12px;margin-top:5px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;margin-left:5px}
+.card{background:#0f1c2e;border:1px solid #203149;border-radius:18px;padding:15px;margin-top:14px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.k{background:#111f33;border-radius:15px;padding:14px}.k b{font-size:22px;display:block;margin-top:7px}.k span{font-size:12px;color:#94a3b8}
+input,button{width:100%;padding:12px;border-radius:12px;border:1px solid #334155;margin-top:9px;font:inherit}
+input{background:#07111f;color:#fff}button{background:#2563eb;color:#fff;border:0;font-weight:700}.hide{display:none}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:9px;border-bottom:1px solid #203149;text-align:right}
+.ok{color:#86efac}.bad{color:#fca5a5}@media(min-width:700px){.grid{grid-template-columns:repeat(4,1fr)}}
+</style></head><body><div class="wrap">
+<div class="top"><div><h1>DR PRINT — لوحة المالك</h1><div class="sub"><span class="dot"></span><span id="live">جاهز للاتصال</span></div></div><div id="clock"></div></div>
+<div class="card" id="login"><b>ربط لوحة الموبايل</b><div class="sub">استخدم نفس Project URL وPublishable Key وحساب التطبيق في Supabase.</div>
+<input id="url" placeholder="Project URL" value="https://umtqxgolvxxwmwqnkfaz.supabase.co">
+<input id="key" placeholder="Publishable Key"><input id="email" placeholder="App Email">
+<input id="pass" type="password" placeholder="App Password"><button id="go">دخول المالك</button><div id="err" class="bad"></div></div>
+<div id="dash" class="hide">
+<div class="grid">
+<div class="k"><span>مبيعات اليوم</span><b id="sales">0</b></div>
+<div class="k"><span>مصروفات اليوم</span><b id="exp">0</b></div>
+<div class="k"><span>العملاء</span><b id="cust">0</b></div>
+<div class="k"><span>الموردون</span><b id="supp">0</b></div>
+<div class="k"><span>الأصناف</span><b id="items">0</b></div>
+<div class="k"><span>أوامر التشغيل</span><b id="jobs">0</b></div>
+<div class="k"><span>فواتير البيع</span><b id="inv">0</b></div>
+<div class="k"><span>آخر تحديث</span><b id="updated" style="font-size:14px">—</b></div>
+</div>
+<div class="card"><b>آخر نشاط على النظام</b><div id="acts" class="sub" style="margin-top:10px">لا يوجد نشاط بعد.</div></div>
+</div></div>
+<script>
+let cfg={},token='',lastStamp='',timer=null;
+const $=x=>document.getElementById(x), money=n=>(Number(n||0)).toLocaleString('ar-EG')+' ج.م';
+function saveCfg(){localStorage.setItem('dr_owner_cfg',JSON.stringify(cfg))}
+function today(){return new Date().toISOString().slice(0,10)}
+function amount(x){return Number(x.total??x.net??x.grandTotal??x.totalAmount??x.amount??0)||0}
+function dte(x){return String(x.date??x.createdAt??x.created_at??'').slice(0,10)}
+async function login(){
+ cfg={url:$('url').value.trim().replace(/\/$/,''),key:$('key').value.trim(),email:$('email').value.trim(),pass:$('pass').value};
+ saveCfg();$('err').textContent='جاري الاتصال...';
+ const r=await fetch(cfg.url+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:cfg.key,'Content-Type':'application/json'},body:JSON.stringify({email:cfg.email,password:cfg.pass})});
+ const j=await r.json();if(!r.ok)throw Error(j.error_description||j.msg||j.message||'فشل الدخول');token=j.access_token;
+ $('login').classList.add('hide');$('dash').classList.remove('hide');$('err').textContent=''; await pull();timer=setInterval(pull,2500);
+}
+async function pull(){
+ try{
+  const r=await fetch(cfg.url+'/rest/v1/app_snapshots?select=state_json,updated_at&snapshot_key=eq.main&limit=1',{headers:{apikey:cfg.key,Authorization:'Bearer '+token}});
+  if(r.status===401){clearInterval(timer);await login();return}
+  const a=await r.json();if(!r.ok||!a.length)return;
+  const row=a[0];$('live').textContent='Live Sync متصل — فحص كل 2.5 ثانية';
+  if(row.updated_at===lastStamp)return;lastStamp=row.updated_at;render(row.state_json||{},row.updated_at);
+ }catch(e){$('live').textContent='انقطع الاتصال — تتم إعادة المحاولة';}
+}
+function render(s,stamp){
+ const sales=Array.isArray(s.salesInvoices)?s.salesInvoices:[], ex=Array.isArray(s.expenses)?s.expenses:[],
+ cust=Array.isArray(s.customers)?s.customers:[], supp=Array.isArray(s.suppliers)?s.suppliers:[],
+ items=Array.isArray(s.categories)?s.categories:[], jobs=Array.isArray(s.jobs)?s.jobs:[],
+ acts=Array.isArray(s.activityLog)?s.activityLog:[];
+ $('sales').textContent=money(sales.filter(x=>dte(x)===today()&&x.status!=='cancelled').reduce((a,x)=>a+amount(x),0));
+ $('exp').textContent=money(ex.filter(x=>dte(x)===today()).reduce((a,x)=>a+amount(x),0));
+ $('cust').textContent=cust.length;$('supp').textContent=supp.length;$('items').textContent=items.length;$('jobs').textContent=jobs.length;$('inv').textContent=sales.length;
+ $('updated').textContent=new Date(stamp).toLocaleTimeString('ar-EG');
+ $('acts').innerHTML=acts.slice(0,12).map(x=>'<div style="padding:8px 0;border-bottom:1px solid #203149">'+(x.action||'تحديث')+' <span class="sub">— '+(x.date||'')+' '+(x.time||'')+'</span></div>').join('')||'لا يوجد نشاط مسجل.';
+}
+$('go').onclick=()=>login().catch(e=>$('err').textContent=e.message);
+setInterval(()=>$('clock').textContent=new Date().toLocaleTimeString('ar-EG'),1000);
+try{const x=JSON.parse(localStorage.getItem('dr_owner_cfg')||'{}');if(x.url)$('url').value=x.url;if(x.key)$('key').value=x.key;if(x.email)$('email').value=x.email}catch(e){}
+</script></body></html>
